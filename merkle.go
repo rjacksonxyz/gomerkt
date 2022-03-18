@@ -95,7 +95,8 @@ func NewTree(cs []Content) (*MerkleTree, error) {
 	return t, nil
 }
 
-//NewTree creates a new Merkle Tree using the content cs.
+//NewTreeCC creates a new Merkle Tree using the content cs.
+//Allows for specification of level of desired concurrency.
 func NewTreeCC(cc uint, cs []Content) (*MerkleTree, error) {
 	var defaultHashStrategy = sha256.New
 	t := &MerkleTree{
@@ -199,6 +200,7 @@ func buildWithContent(cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 
 //buildWithContentCC is a helper function that for a given set of Contents, generates a
 //corresponding tree and returns the root node, a list of leaf nodes, and a possible error.
+//Allows for specification of level of desired concurrency.
 //Returns an error if cs contains no Contents.
 func buildWithContentCC(cc uint, cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 
