@@ -1,4 +1,4 @@
-// Copyright 2017 mercury (0xmercurial)
+// Copyright 2022 mercury (0xmercurial)
 // Licensed under the MIT License, see LICENCE file for details.
 
 package gomerkt
@@ -346,11 +346,26 @@ var table = []struct {
 }
 
 func TestNewTree(t *testing.T) {
-	for i := 0; i < len(table); i++ {
+	for i := 0; i < 4; i++ {
 		if !table[i].defaultHashStrategy {
 			continue
 		}
 		tree, err := NewTree(table[i].contents)
+		if err != nil {
+			t.Errorf("[case:%d] error: unexpected error: %v", table[i].testCaseId, err)
+		}
+		if bytes.Compare(tree.MerkleRoot(), table[i].expectedHash) != 0 {
+			t.Errorf("[case:%d] error: expected hash equal to %v got %v", table[i].testCaseId, table[i].expectedHash, tree.MerkleRoot())
+		}
+	}
+}
+
+func TestNewTressCC(t *testing.T) {
+	for i := 0; i < 4; i++ {
+		if !table[i].defaultHashStrategy {
+			continue
+		}
+		tree, err := NewTreeCC(table[i].contents)
 		if err != nil {
 			t.Errorf("[case:%d] error: unexpected error: %v", table[i].testCaseId, err)
 		}

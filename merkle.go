@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"sync"
 )
 
 //Content represents the data that is stored and verified by the tree. A type that
@@ -94,6 +95,22 @@ func NewTree(cs []Content) (*MerkleTree, error) {
 	return t, nil
 }
 
+//NewTree creates a new Merkle Tree using the content cs.
+func NewTreeCC(cs []Content) (*MerkleTree, error) {
+	var defaultHashStrategy = sha256.New
+	t := &MerkleTree{
+		hashStrategy: defaultHashStrategy,
+	}
+	root, leafs, err := buildWithContentConcurrent(2, cs, t)
+	if err != nil {
+		return nil, err
+	}
+	t.Root = root
+	t.Leafs = leafs
+	t.merkleRoot = root.Hash
+	return t, nil
+}
+
 //NewTreeWithHashStrategy creates a new Merkle Tree using the content cs using the provided hash
 //strategy. Note that the hash type used in the type that implements the Content interface must
 //match the hash type profided to the tree.
@@ -150,6 +167,7 @@ func buildWithContent(cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 	var leafs []*Node
 	for _, c := range cs {
 		hash, err := c.CalculateHash()
+		fmt.Printf("%v hashed to %v\n", c, hash)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -161,6 +179,87 @@ func buildWithContent(cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 			Tree: t,
 		})
 	}
+
+	if len(leafs)%2 == 1 {
+		duplicate := &Node{
+			Hash: leafs[len(leafs)-1].Hash,
+			C:    leafs[len(leafs)-1].C,
+			leaf: true,
+			dup:  true,
+			Tree: t,
+		}
+		leafs = append(leafs, duplicate)
+	}
+	root, err := buildIntermediate(leafs, t)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return root, leafs, nil
+}
+
+//buildWithContentConcurrent is a helper function that for a given set of Contents, generates a
+//corresponding tree and returns the root node, a list of leaf nodes, and a possible error.
+//Returns an error if cs contains no Contents.
+func buildWithContentConcurrent(cc uint, cs []Content, t *MerkleTree) (*Node, []*Node, error) {
+
+	var leafs []*Node
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var _errors chan error = make(chan error)
+	cci := int(cc)
+	order := 0
+	lastGoroutine := cci - 1
+	stride := len(cs) / cci
+
+	if len(cs) == 0 {
+		return nil, nil, errors.New("error: cannot construct tree with no content")
+	}
+	if cc%2 == 1 {
+		return nil, nil, errors.New("error: must provide an even integer")
+	}
+
+	wg.Add(cci)
+	//concurrently hash content
+	for goroutine := 0; goroutine < cci; goroutine++ {
+		go func(goroutine int) error {
+			start := goroutine * stride
+			end := start + stride
+			if goroutine == lastGoroutine {
+				end = len(cs)
+			}
+			//hash content
+			var subLeafs []*Node
+			for _, c := range cs[start:end] {
+				hash, err := c.CalculateHash()
+				fmt.Printf("%v hashed to %v\n", c, hash)
+				if err != nil {
+					_errors <- err
+					break
+				}
+
+				subLeafs = append(subLeafs, &Node{
+					Hash: hash,
+					C:    c,
+					leaf: true,
+					Tree: t,
+				})
+			}
+			mu.Lock()
+
+			order++
+			leafs = append(leafs, subLeafs...)
+			mu.Unlock()
+			wg.Done()
+			return nil
+		}(goroutine)
+	}
+	wg.Wait()
+
+	if len(_errors) != 0 {
+		return nil, nil, <-_errors
+	}
+	// create duplicates if necessary
 	if len(leafs)%2 == 1 {
 		duplicate := &Node{
 			Hash: leafs[len(leafs)-1].Hash,
