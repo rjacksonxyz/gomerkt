@@ -101,7 +101,7 @@ func NewTreeCC(cc uint, cs []Content) (*MerkleTree, error) {
 	t := &MerkleTree{
 		hashStrategy: defaultHashStrategy,
 	}
-	root, leafs, err := buildWithContentConcurrent(2, cs, t)
+	root, leafs, err := buildWithContentCC(cc, cs, t)
 	if err != nil {
 		return nil, err
 	}
@@ -197,14 +197,14 @@ func buildWithContent(cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 	return root, leafs, nil
 }
 
-//buildWithContentConcurrent is a helper function that for a given set of Contents, generates a
+//buildWithContentCC is a helper function that for a given set of Contents, generates a
 //corresponding tree and returns the root node, a list of leaf nodes, and a possible error.
 //Returns an error if cs contains no Contents.
-func buildWithContentConcurrent(cc uint, cs []Content, t *MerkleTree) (*Node, []*Node, error) {
+func buildWithContentCC(cc uint, cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 
 	var leafs []*Node
 	var wg sync.WaitGroup
-	var mu sync.RWMutex
+	var mu sync.Mutex
 	var _errors chan error = make(chan error)
 	cci := int(cc)
 	order := 0
@@ -282,6 +282,7 @@ func buildWithContentConcurrent(cc uint, cs []Content, t *MerkleTree) (*Node, []
 //the intermediate and root levels of the tree. Returns the resulting root node of the tree.
 func buildIntermediate(nl []*Node, t *MerkleTree) (*Node, error) {
 	var nodes []*Node
+	// fmt.Printf("nl length: %d\n", len(nl))
 	for i := 0; i < len(nl); i += 2 {
 		h := t.hashStrategy()
 		var left, right int = i, i + 1
@@ -302,10 +303,68 @@ func buildIntermediate(nl []*Node, t *MerkleTree) (*Node, error) {
 		nl[left].Parent = n
 		nl[right].Parent = n
 		if len(nl) == 2 {
+			// fmt.Printf("length: %d\n, left: %v, right: %v\n", len(nl), nl[left].Hash, nl[right].Hash)
 			return n, nil
 		}
 	}
 	return buildIntermediate(nodes, t)
+}
+
+// (WIP)
+//buildIntermediateCC is a helper function that for a given list of leaf nodes, constructs
+//the intermediate and root levels of the tree. Returns the resulting root node of the tree.
+// NOTE: need to research about concurrent/performance hasing/merkle tree construction from list of nodes
+func buildIntermediateCC(nl []*Node, t *MerkleTree) (*Node, error) {
+	var nodes []*Node
+	var root chan *Node = make(chan *Node, 1)
+	var errors_ chan error = make(chan error)
+	order := 0
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var wgs int
+	if len(nl)%2 != 0 {
+		wgs = len(nl)/2 + 1
+	} else {
+		wgs = len(nl) / 2
+	}
+	wg.Add(wgs)
+	for i := 0; i < len(nl); i += 2 {
+		go func(i int) {
+			h := t.hashStrategy()
+			var left, right int = i, i + 1
+			if i+1 == len(nl) {
+				right = i
+			}
+			chash := append(nl[left].Hash, nl[right].Hash...)
+			if _, err := h.Write(chash); err != nil {
+				errors_ <- err
+			}
+			n := &Node{
+				Left:  nl[left],
+				Right: nl[right],
+				Hash:  h.Sum(nil),
+				Tree:  t,
+			}
+			for i != order {
+			}
+			mu.Lock()
+			order += 2
+			nodes = append(nodes, n)
+			mu.Unlock()
+			nl[left].Parent = n
+			nl[right].Parent = n
+			if len(nl) == 2 {
+				// fmt.Printf("length: %d\n, left: %v, right: %v\n", len(nl), nl[left].Hash, nl[right].Hash)
+				root <- n
+			}
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	if len(root) > 0 {
+		return <-root, nil
+	}
+	return buildIntermediateCC(nodes, t)
 }
 
 //MerkleRoot returns the unverified Merkle Root (hash of the root node) of the tree.

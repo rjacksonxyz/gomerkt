@@ -39,3 +39,15 @@ func BenchmarkNewTreeCC2(b *testing.B) {
 		NewTreeCC(2, contents)
 	}
 }
+
+func BenchmarkNewTreeCC4(b *testing.B) {
+	for i := 0; i < iterations; i++ {
+		NewTreeCC(4, contents)
+	}
+}
+
+func BenchmarkNewTreeCC8(b *testing.B) {
+	for i := 0; i < iterations; i++ {
+		NewTreeCC(8, contents)
+	}
+}

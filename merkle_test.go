@@ -345,7 +345,7 @@ var table = []struct {
 	},
 }
 
-func TestNewTree(t *testing.T) {
+func TestNewTreeS(t *testing.T) {
 	for i := 0; i < len(table); i++ {
 		if !table[i].defaultHashStrategy {
 			continue
@@ -360,7 +360,7 @@ func TestNewTree(t *testing.T) {
 	}
 }
 
-func TestNewTressCC(t *testing.T) {
+func TestNewTreeCC(t *testing.T) {
 	for i := 0; i < len(table); i++ {
 		if !table[i].defaultHashStrategy {
 			continue
