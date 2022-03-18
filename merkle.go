@@ -96,7 +96,7 @@ func NewTree(cs []Content) (*MerkleTree, error) {
 }
 
 //NewTree creates a new Merkle Tree using the content cs.
-func NewTreeCC(cs []Content) (*MerkleTree, error) {
+func NewTreeCC(cc uint, cs []Content) (*MerkleTree, error) {
 	var defaultHashStrategy = sha256.New
 	t := &MerkleTree{
 		hashStrategy: defaultHashStrategy,
@@ -167,7 +167,6 @@ func buildWithContent(cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 	var leafs []*Node
 	for _, c := range cs {
 		hash, err := c.CalculateHash()
-		fmt.Printf("%v hashed to %v\n", c, hash)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -205,7 +204,7 @@ func buildWithContentConcurrent(cc uint, cs []Content, t *MerkleTree) (*Node, []
 
 	var leafs []*Node
 	var wg sync.WaitGroup
-	var mu sync.Mutex
+	var mu sync.RWMutex
 	var _errors chan error = make(chan error)
 	cci := int(cc)
 	order := 0
@@ -232,7 +231,6 @@ func buildWithContentConcurrent(cc uint, cs []Content, t *MerkleTree) (*Node, []
 			var subLeafs []*Node
 			for _, c := range cs[start:end] {
 				hash, err := c.CalculateHash()
-				fmt.Printf("%v hashed to %v\n", c, hash)
 				if err != nil {
 					_errors <- err
 					break
@@ -245,8 +243,10 @@ func buildWithContentConcurrent(cc uint, cs []Content, t *MerkleTree) (*Node, []
 					Tree: t,
 				})
 			}
-			mu.Lock()
 
+			for order != goroutine {
+			}
+			mu.Lock()
 			order++
 			leafs = append(leafs, subLeafs...)
 			mu.Unlock()

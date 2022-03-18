@@ -346,7 +346,7 @@ var table = []struct {
 }
 
 func TestNewTree(t *testing.T) {
-	for i := 0; i < 4; i++ {
+	for i := 0; i < len(table); i++ {
 		if !table[i].defaultHashStrategy {
 			continue
 		}
@@ -361,11 +361,11 @@ func TestNewTree(t *testing.T) {
 }
 
 func TestNewTressCC(t *testing.T) {
-	for i := 0; i < 4; i++ {
+	for i := 0; i < len(table); i++ {
 		if !table[i].defaultHashStrategy {
 			continue
 		}
-		tree, err := NewTreeCC(table[i].contents)
+		tree, err := NewTreeCC(2, table[i].contents)
 		if err != nil {
 			t.Errorf("[case:%d] error: unexpected error: %v", table[i].testCaseId, err)
 		}
